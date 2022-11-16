@@ -1,0 +1,25 @@
+#!/home/mevu/zato/code/bin/python
+
+# To prevent an attribute error in pyreadline\py3k_compat.py
+# AttributeError: module 'collections' has no attribute 'Callable'
+
+try:
+    import collections
+    collections.Callable = collections.abc.Callable
+except AttributeError:
+    pass
+
+# Zato
+from zato.cli.zato_command import main
+
+if __name__ == '__main__':
+
+    # stdlib
+    import re
+    import sys
+
+    # This is needed by SUSE
+    sys.path.append(r'/home/mevu/zato/code/lib64/python3.6/site-packages/')
+
+    sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
+    sys.exit(main())

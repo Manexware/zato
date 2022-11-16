@@ -1,0 +1,12 @@
+setup.py
+src/zato/__init__.py
+src/zato/testing/__init__.py
+src/zato/testing/requests_.py
+src/zato/testing/service.py
+src/zato/testing/vault_.py
+src/zato_testing.egg-info/PKG-INFO
+src/zato_testing.egg-info/SOURCES.txt
+src/zato_testing.egg-info/dependency_links.txt
+src/zato_testing.egg-info/namespace_packages.txt
+src/zato_testing.egg-info/not-zip-safe
+src/zato_testing.egg-info/top_level.txt

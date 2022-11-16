@@ -1,0 +1,11 @@
+setup.py
+src/zato/__init__.py
+src/zato/broker/__init__.py
+src/zato/broker/client.py
+src/zato/broker/thread_client.py
+src/zato_broker.egg-info/PKG-INFO
+src/zato_broker.egg-info/SOURCES.txt
+src/zato_broker.egg-info/dependency_links.txt
+src/zato_broker.egg-info/namespace_packages.txt
+src/zato_broker.egg-info/not-zip-safe
+src/zato_broker.egg-info/top_level.txt
