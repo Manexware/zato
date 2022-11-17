@@ -565,6 +565,7 @@ class SudsSOAPWrapper(BaseHTTPSOAPWrapper):
         self.conn_type = 'Suds SOAP'
         self.client = ConnectionQueue(
             None,
+            self.config['is_active'],
             self.config['pool_size'],
             self.config['queue_build_cap'],
             self.config['id'],
