@@ -135,7 +135,7 @@ class Model:
 
 class ModelCtx:
     service: 'Service'
-    data: 'anydict'
+    data: 'anydict | Model'
     DataClass: 'any_'
 
 # ################################################################################################################################
@@ -180,7 +180,7 @@ class DictCtx:
     def __init__(
         self,
         service:      'Service',
-        current_dict: 'anydict',
+        current_dict: 'anydict | Model',
         DataClass:    'any_',
         extra:        'dictnone',
         list_idx:     'intnone',
@@ -276,7 +276,10 @@ class FieldCtx:
         # If we do not have a value here, it means that we have no extra,
         # or that it did not contain the expected value so we look it up in the current dictionary.
         if value == ZatoNotGiven:
-            value = self.dict_ctx.current_dict.get(self.name, ZatoNotGiven)
+            if isinstance(self.dict_ctx.current_dict, dict):
+                value = self.dict_ctx.current_dict.get(self.name, ZatoNotGiven)
+            elif isinstance(self.dict_ctx.current_dict, Model): # type: ignore
+                value = getattr(self.dict_ctx.current_dict, self.name, ZatoNotGiven)
 
         # At this point, we know there will be something to assign although it still may be ZatoNotGiven.
         self.value = value
@@ -446,8 +449,9 @@ class MarshalAPI:
                     # Enter further only if we have any value at all to check ..
                     if field_ctx.value and field_ctx.value != ZatoNotGiven: # type: ignore
 
-                        # .. make sure that what we have on input really is a list object ..
-                        self._ensure_value_is_a_list(field_ctx, field_ctx.value)
+                        # .. if the field is required, make sure that what we have on input really is a list object ..
+                        if field_ctx.is_required:
+                            self._ensure_value_is_a_list(field_ctx, field_ctx.value)
 
                         # However, that model class may actually point to <type 'str'> types
                         # in case of fields like strlist, and we need to take that into account
@@ -475,10 +479,11 @@ class MarshalAPI:
                             # .. extract the value first ..
                             value = current_dict[field_ctx.name]
 
-                            # .. make sure that what we have on input really is a list object ..
-                            self._ensure_value_is_a_list(field_ctx, value)
+                            # .. if the field is required, make sure that what we have on input really is a list object ..
+                            if field_ctx.is_required:
+                                self._ensure_value_is_a_list(field_ctx, value)
 
-                            # .. assign the dictlist now.
+                            # .. assign the list now.
                             field_ctx.value = value
 
             # If we do not have a value yet, perhaps we will find a default one

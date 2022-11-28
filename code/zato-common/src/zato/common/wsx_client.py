@@ -6,6 +6,10 @@ Copyright (C) 2022, Zato Source s.r.o. https://zato.io
 Licensed under LGPLv3, see LICENSE.txt for terms and conditions.
 """
 
+# First thing in the process
+from gevent import monkey
+monkey.patch_all()
+
 # stdlib
 import random
 import socket
@@ -72,6 +76,7 @@ utcnow = datetime.utcnow
 class Default:
     ResponseWaitTime = 5 # How many seconds to wait for responses
     MaxConnectAttempts = 1234567890
+    MaxWaitTime = 999_999_999
 
 # ################################################################################################################################
 # ################################################################################################################################
@@ -323,7 +328,7 @@ class _WebSocketClientImpl(WebSocketClient):
             )
             return
 
-        message_sender = self.stream.binary_message if binary else self.stream.text_message
+        message_sender = self.stream.binary_message if binary else self.stream.text_message # type: any_
 
         if isinstance(payload, str) or isinstance(payload, bytearray):
             m = message_sender(payload).single(mask=self.stream.always_mask)
@@ -411,7 +416,7 @@ class Client:
 
 # ################################################################################################################################
 
-    def _send(self, msg_id:'str', msg:'dict', serialized:'str', wait_time:'int') -> 'None':
+    def _send(self, msg_id:'str', msg:'anydict', serialized:'str', wait_time:'int') -> 'None':
         """ Sends a request to Zato and waits up to wait_time or self.config.wait_time seconds for a reply.
         """
         self.logger.info('Sending msg `%s`', serialized)
@@ -437,7 +442,7 @@ class Client:
 
         while now < until:
 
-            response = self.responses_received.get(request_id)
+            response = self.responses_received.get(request_id) # type: any_
             if response:
                 return response
             else:
@@ -603,26 +608,54 @@ class Client:
 
 # ################################################################################################################################
 
-    def run(self, max_wait:'int'=999_999_999) -> 'None':
-
-        # Actually try to connect ..
-        self._run(max_wait)
+    def _wait_until_flag_is_true(self, get_flag_func:'callable_', max_wait:'int'=Default.MaxWaitTime) -> 'bool':
 
         # .. wait for the connection for that much time ..
         now = utcnow()
         until = now + timedelta(seconds=max_wait)
 
         # .. wait and return if max. wait time is exceeded ..
-        while not self.is_connected:
+        while not get_flag_func():
             sleep(0.1)
             now = utcnow()
             if now >= until:
-                return
+                return True
+
+        # If we are here, it means that we did not exceed the max_wait time
+        return False
+
+# ################################################################################################################################
+
+    def run(self, max_wait:'int'=Default.MaxWaitTime) -> 'None':
+
+        # Actually try to connect ..
+        self._run(max_wait)
+
+        def get_flag_func():
+            return self.is_connected
+
+        # .. wait and potentially return if max. wait time is exceeded ..
+        has_exceeded = self._wait_until_flag_is_true(get_flag_func)
+        if has_exceeded:
+            return
 
         # .. otherwise, if we are here, it means that we are connected,
         # .. although we may be still not authenticated as this step
         # .. is carried out by the on_connected_callback method.
         pass
+
+# ################################################################################################################################
+
+    def wait_until_authenticated(self, max_wait:'int'=Default.MaxWaitTime) -> 'bool':
+
+        def get_flag_func():
+            return self.is_authenticated
+
+        # Wait until we are authenticated or until the max. wait_time is exceeded
+        _ = self._wait_until_flag_is_true(get_flag_func)
+
+        # Return the flag to the caller for it to decide what to do next
+        return self.is_authenticated
 
 # ################################################################################################################################
 
@@ -667,6 +700,23 @@ class Client:
         return self.invoke_service(service_name, request)
 
 # ################################################################################################################################
+
+    def publish(
+        self,
+        topic_name, # type: str
+        data        # type: any_
+    ) -> 'None':
+
+        service_name = 'zato.pubsub.pubapi.publish-message'
+
+        response = self.invoke_service(service_name, {
+            'topic_name': topic_name,
+            'data':data
+        })
+
+        response
+
+# ################################################################################################################################
 # ################################################################################################################################
 
 if __name__ == '__main__':
@@ -690,37 +740,58 @@ if __name__ == '__main__':
         except Exception:
             return format_exc()
 
+    def check_is_active_func():
+        return True
+
     address = 'ws://127.0.0.1:47043/zato.wsx.apitests'
     client_id = '123456'
     client_name = 'My Client'
     on_request_callback = on_request_from_zato
+
+    # Test topic to use
+    topic_name1 = '/test1'
+    topic_name2 = '/test2'
 
     config = Config()
     config.address = address
     config.client_id = client_id
     config.client_name = client_name
     config.on_request_callback = on_request_callback
+    config.check_is_active_func = check_is_active_func
     config.username = 'user1'
     config.secret = 'secret1'
 
+    # Create a client ..
     client = Client(config)
+
+    # .. start it ..
     client.run()
 
-    # Wait until we are authenticated to invoke a test service
-    sleep(0.5)
-    client.invoke({'service':'zato.ping'})
+    # .. wait until it is authenticated ..
+    client.wait_until_authenticated()
 
-    client.subscribe('/test1')
+    # .. and run sample code now ..
+
+    is_subscriber = 1
+
+    if is_subscriber:
+        client.subscribe(topic_name1)
+    else:
+        idx = 0
+        while idx < 100_000_000:
+            idx += 1
+            client.invoke({'service':'zato.ping'})
+            client.publish(topic_name1, f'{idx}')
+            # sleep(1)
 
     _cli_logger.info('Press Ctrl-C to quit')
 
     try:
         x = 0
-        while x < 1000 and client.keep_running:
+        while x < 100_000_000 and client.keep_running:
             sleep(0.2)
     except KeyboardInterrupt:
         client.stop()
-
 
 # ################################################################################################################################
 # ################################################################################################################################

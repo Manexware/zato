@@ -1,7 +1,6 @@
 anyjson>=0.3.3
 arrow>=0.4.2
 boto>=2.35.1
-bunch>=1.0.1
 candv>=1.1.1
 ConcurrentLogHandler>=0.9.1
 configobj>=5.0.5
